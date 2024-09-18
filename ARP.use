@@ -1,0 +1,223 @@
+model AccountsReceivableProcessor
+
+--------------
+--Classes
+--------------
+
+
+--Main Class
+class ReceivablesAccount
+    attributes
+        number : String
+        currentBalance : Real init = 0
+        day30Balance : Real init = 0
+        day60Balance : Real init = 0
+        day90Balance : Real init = 0
+        day120Balance : Real init = 0
+        collections : Real init = 0
+    operations
+        ProcessInvoices()
+        
+
+        EndOfMonthUpdate()
+        begin
+                self.collections := self.collections + self.day120Balance;
+                self.day120Balance := self.day90Balance;
+                self.day90Balance := self.day60Balance;
+                self.day60Balance := self.day30Balance;
+                self.day30Balance := self.currentBalance;
+                self.currentBalance := 0;
+        end
+
+        NewInvoice( invoice : Invoice )
+        begin
+            insert(self, invoice) into Unprocessed;
+        end
+
+    statemachines
+        psm InvoicesProcessedStates
+        states
+            NewReceivablesAccount : initial
+            UnprocessedState [self.unprocessedInvoices->size() > 0]
+            ProcessedState [self.unprocessedInvoices->size() = 0]
+        transitions
+            NewReceivablesAccount -> ProcessedState { create }
+            UnprocessedState -> ProcessedState { ProcessInvoices() }
+            ProcessedState -> UnprocessedState { NewInvoice() }
+            UnprocessedState -> UnprocessedState { NewInvoice() }
+            ProcessedState -> ProcessedState { ProcessInvoices() }
+        end
+end
+
+class ARProcessor
+    operations
+        ProcessInvoices(arAccounts : Set(ReceivablesAccount))
+        begin
+            for recAcc in arAccounts do
+                recAcc.ProcessInvoices();
+            end
+        end
+
+        EndOfMonthUpdate(arAccounts : Set(ReceivablesAccount))
+        begin
+            for recAcc in arAccounts do
+                recAcc.EndOfMonthUpdate();
+            end
+        end
+
+        CreateInvoice(number : String, amount : Real, acc : ReceivablesAccount)
+        begin
+            declare newInvoice : Invoice;
+            newInvoice := new Invoice;
+            newInvoice.number := number;
+            newInvoice.amount := amount;
+            acc.NewInvoice(newInvoice);
+        end
+
+        test()
+        
+    statemachines
+        psm AllInvoicesProcessedStates
+        states
+            NewAPR : initial
+            UnprocessedState 
+            ProcessedState
+        transitions
+            NewAPR -> ProcessedState { create }
+            UnprocessedState -> ProcessedState { ProcessInvoices() }
+            ProcessedState -> UnprocessedState { CreateInvoice() }
+            UnprocessedState -> UnprocessedState { CreateInvoice() }
+            ProcessedState -> ProcessedState { ProcessInvoices() }
+        end
+end
+
+class Customer
+    attributes
+    id : String
+    firstName : String
+    lastName : String
+    address : Address
+    telHome : String
+    telWork : String
+end
+
+class Address 
+    attributes
+        address1 : String
+        address2 : String
+        city : String
+        state : String
+        zip : String
+end
+
+class Invoice
+    attributes
+        number : String
+        amount : Real
+end
+
+
+-----------
+-- Associations
+-----------
+association Has between
+    ReceivablesAccount[0..1]
+    Customer[1] role customer
+end
+
+association Unprocessed between
+    ReceivablesAccount[0..1] role unpRA
+    Invoice[0..*] role unprocessedInvoices
+end
+
+association Processed between
+    ReceivablesAccount[0..1] role pRA
+    Invoice[0..*] role processedInvoices
+end
+
+
+-----------
+-- Constraints
+-----------
+constraints
+
+------------------------------
+-- ReceivablesAccount invariants
+------------------------------
+-- An Invoice cannot be both unprocessed and processed.
+context ReceivablesAccount 
+    inv InvoiceNotProcessedAndUnprocessed: unprocessedInvoices->intersection(processedInvoices)->isEmpty()
+
+-- An invoice number must be six characters in length.
+context ReceivablesAccount 
+    inv InvoiceNumberSize: self.number.size() = 6
+
+--- Invoice number must be unique
+context Invoice
+    inv UniqueInvoiceNumber: Invoice.allInstances()->forAll(e, j | e <> j implies e.number <> j.number)
+
+
+
+------------------------------
+-- ARProcessor :: ProcessInvoices pre-conditions
+------------------------------
+-- There must be some unprocessedInvoices from the set passed.
+context ARProcessor :: ProcessInvoices(arAccounts : Set(ReceivablesAccount)) 
+    pre UnprocessedInvoicesExist: arAccounts->exists(unprocessedInvoices->notEmpty())
+
+
+------------------------------
+-- ARProcessor :: ProcessInvoices post-conditions
+------------------------------
+-- unprocessedInvoices become processedInvoices
+context ARProcessor :: ProcessInvoices( arAccounts : Set(ReceivablesAccount))
+    post AllInvoicesProcessed: arAccounts->forAll(
+        unprocessedInvoices->isEmpty() and
+        processedInvoices = processedInvoices@pre->union(unprocessedInvoices@pre)
+    )
+
+
+------------------------------
+-- ARProcessor :: EndOfMonthUpdate pre-conditions
+------------------------------
+-- There are no unprocessed invoices.
+context ARProcessor :: EndOfMonthUpdate(arAccounts : Set(ReceivablesAccount))
+    pre NoUnprocessedInvoicesExist: arAccounts->forAll(unprocessedInvoices->isEmpty())
+
+
+------------------------------
+-- ARProcessor :: EndOfMonthUpdate post-conditions
+------------------------------
+-- For all of the arAccounts the following holds:
+    -- The collections values is its previous values plus the previous day120Balance and
+    -- the day120Balance is the previous day90Balance and
+    -- the day90Balance is the previous day60Balance and
+    -- the day60Balance is the previous day30Balance and
+    -- the day30Balance is the previous currentBalance and
+    -- the currentBalance is 0.
+
+-- @pre modifies an identifier to refer to the value it had
+-- before the operation executed
+context ARProcessor :: EndOfMonthUpdate (arAccounts : Set(ReceivablesAccount))
+    post MonthUpdate: arAccounts->forAll(
+        currentBalance = 0 and
+        day30Balance = currentBalance@pre and
+        day60Balance = day30Balance@pre and
+        day90Balance = day60Balance@pre and
+        day120Balance = day90Balance@pre and
+        collections = collections@pre + day120Balance@pre
+    )
+
+
+------------------------------
+-- ARProcessor :: CreateInvoice pre-conditions
+------------------------------
+-- Receivable's account must exist to create invoice
+context ARProcessor :: CreateInvoice (number : String, amount : Real, acc : ReceivablesAccount)
+    pre AccountExists: acc.isDefined()
+
+------------------------------
+-- ReceivablesAccount :: NewInvoice post-conditions
+------------------------------
+context ReceivablesAccount :: NewInvoice ( invoice : Invoice)
+    post InvoiceAdded: self.unprocessedInvoices->includes(invoice) -- invoice has been added

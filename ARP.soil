@@ -1,0 +1,82 @@
+
+
+!new ARProcessor('arp')
+
+!new Customer('me')
+!new Customer('tom')
+!new Customer('jake')
+
+!new Address('add1')
+!new Address('add2')
+!new Address('add3')
+
+-- Customer 'me' initialization
+!me.id :='123123'
+!me.firstName := 'C22731795'
+!me.lastName :='Sagar Singh'
+!me.telHome := '0123456'
+!me.telWork := '6543210'
+
+!add1.address1 := '25 fun rd'
+!add1.address2 := ' more road'
+!add1.city := 'Kimmage'
+!add1.state := 'Dublin'
+!add1.zip := 'D15 K654'
+!me.address := add1
+
+!new ReceivablesAccount('meAcc')
+!meAcc.number := me.id;
+!insert(meAcc, me) into Has
+
+
+-- Customer 'tom' initialization
+!tom.id :='456456'
+!tom.firstName := 'Thomas'
+!tom.lastName :='Smith'
+!tom.telHome := '0123456'
+!tom.telWork := '6543210'
+
+!add2.address1 := '25 garry st'
+!add2.address2 := ' lake avenue'
+!add2.city := 'grangegorman'
+!add2.state := 'Dublin'
+!add2.zip := 'D10 A546'
+!tom.address := add2
+
+!new ReceivablesAccount('tomAcc')
+!tomAcc.number := tom.id;
+!insert(tomAcc, tom) into Has
+
+
+-- Customer 'jake' initialization
+!jake.id :='789789'
+!jake.firstName := 'Jacob'
+!jake.lastName :='Lanert'
+!jake.telHome := '0123456'
+!jake.telWork := '6543210'
+
+!add3.address1 := 'Houston'
+!add3.address2 := ' Station'
+!add3.city := 'Ohio'
+!add3.state := 'Dublin'
+!add3.zip := 'OH654'
+!jake.address := add3
+
+!new ReceivablesAccount('jakeAcc')
+!jakeAcc.number := jake.id;
+!insert(jakeAcc, jake) into Has
+
+
+-- invoices
+!arp.CreateInvoice('123789',20,meAcc)
+!arp.CreateInvoice('651681',200,jakeAcc)
+!arp.CreateInvoice('123789',159,meAcc)
+
+--ARP operations
+--!arp.ProcessInvoices(ReceivablesAccount.allInstances())
+
+--!arp.CreateInvoice('010203',962,tomAcc)
+
+--!arp.ProcessInvoices(ReceivablesAccount.allInstances())
+
+--!arp.EndOfMonthUpdate(ReceivablesAccount.allInstances())
